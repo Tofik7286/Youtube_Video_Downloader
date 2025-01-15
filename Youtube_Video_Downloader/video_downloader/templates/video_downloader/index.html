@@ -1,0 +1,87 @@
+<!-- video_downloader/templates/video_downloader/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube Video Downloader</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="my-4 text-center">YouTube Video Downloader</h1>
+      <form method="post" action="{% url 'index' %}" class="mb-4">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="video_url">YouTube Video URL:</label>
+          <input
+            type="text"
+            id="video_url"
+            name="video_url"
+            class="form-control"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary">
+          Fetch Video Details
+        </button>
+      </form>
+
+      {% if video_details %}
+      <form method="post" action="{% url 'download' %}">
+        {% csrf_token %}
+        <table class="table table-bordered">
+          <thead class="thead-dark">
+            <tr>
+              <th>Image</th>
+              <th>Video Title</th>
+              <th>Channel Name</th>
+              <th>Views</th>
+              <th>Select Download Format</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <img
+                  src="{{ video_details.thumbnail_url }}"
+                  alt="Thumbnail"
+                  class="img-thumbnail"
+                />
+              </td>
+              <td>{{ video_details.title }}</td>
+              <td>{{ video_details.channel }}</td>
+              <td>{{ video_details.views }}</td>
+              <td>
+                <input
+                  type="hidden"
+                  name="video_url"
+                  value="{{ video_details.video_url }}"
+                />
+                <select name="format_id" class="form-control">
+                  {% for format in formats %}
+                  <option value="{{ format.format_id }}">
+                    {{ format.ext }} - {{ format.resolution }} - {{ format.note
+                    }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="submit" class="btn btn-success">Download</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  </body>
+</html>
