@@ -9,9 +9,11 @@ from urllib.error import HTTPError
 import time
 from urllib.parse import urlparse, parse_qs
 import re
+from dotenv import load_dotenv
 
+load_dotenv()
 # YouTube API configuration
-API_KEY = 'AIzaSyA71ET0YPk-8BEc75082ypqGkmbzxxswBw'
+API_KEY = os.getenv('API_KEY')
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
 
@@ -104,16 +106,16 @@ def download_video(request):
                 info_dict = ydl.extract_info(video_url)
                 title = sanitize_filename(info_dict.get('title', 'video'))
                 ext = info_dict.get('ext', 'mp4')
-                downloaded_file_path = os.path.join(settings.MEDIA_ROOT, f"{title}_{current_time}.{ext}")
+                downloaded_file_path = os.path.join(settings.MEDIA_ROOT, f"{title}.{ext}")
 
                 # Ensure the file exists before setting the modification time
                 if os.path.exists(downloaded_file_path):
                     # Set file modification time to current time
                     os.utime(downloaded_file_path, (time.time(), time.time()))
-                # else:
-                #     # Log an error if the file does not exist
-                #     print(f"File not found: {downloaded_file_path}")
-                #     return HttpResponse(f"File not found: {downloaded_file_path}", status=500)
+                else:
+                    # Log an error if the file does not exist
+                    print(f"File not found: {downloaded_file_path}")
+                    return HttpResponse(f"File not found: {downloaded_file_path}", status=500)
 
             return HttpResponse(f"Video downloaded successfully: {downloaded_file_path}")
         except HTTPError as e:
