@@ -37,11 +37,7 @@ SECRET_KEY = 'django-insecure-0tl*-k0*2x&1k4#7gy*14@wd9sy=yuo#a%scvrm+i44tte8&b4
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    'localhost', 
-    '127.0.0.1',
-    'youtube-video-downloader-1-hc8t.onrender.com'
-]
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -65,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'Youtube_Video_Downloader.urls'
