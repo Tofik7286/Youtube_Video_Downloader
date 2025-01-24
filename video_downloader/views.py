@@ -93,15 +93,19 @@ def download_video(request):
         format_id = request.POST.get('format_id')
 
         try:
-            # Use yt-dlp to download the video with cookies
+            # Use yt-dlp to download the video without cookies
             current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-            cookies_file_path = os.path.join(settings.BASE_DIR, 'cookies.txt')  # Update this path to match the location of your cookies.txt file
             output_template = os.path.join(settings.MEDIA_ROOT, '%(title)s.%(ext)s')
+
+            # Custom user-agent and no cookies
             ydl_opts = {
                 'format': format_id,
                 'outtmpl': output_template,
-                'cookiefile': cookies_file_path,
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'no-check-certificate': True,  # Ignore SSL certificate errors
+                'extractor-args': 'youtube:player_client=android',  # Mimic Android player
             }
+
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                 info_dict = ydl.extract_info(video_url)
                 title = sanitize_filename(info_dict.get('title', 'video'))

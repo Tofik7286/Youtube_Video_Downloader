@@ -40,7 +40,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'youtube-video-downloader-webapp.onrender.com',
     'localhost',
-    
+    '127.0.0.1',
 ]
 
 
