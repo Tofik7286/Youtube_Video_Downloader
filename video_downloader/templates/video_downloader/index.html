@@ -1,3 +1,4 @@
+{% load static %}
 <!-- video_downloader/templates/video_downloader/index.html -->
 <!DOCTYPE html>
 <html lang="en">
@@ -10,8 +11,31 @@
       href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <!-- custom css  -->
+    <style>
+      .captchaContainer {
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        width: 100%;
+        flex-direction: row;
+        border-color: white;
+        display: none;
+      }
+    </style>
+    <!-- Cloudfair  -->
+    <script
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback"
+      defer
+    ></script>
   </head>
   <body>
+    <script>
+      // Captcha
+    </script>
+    <div class="captchaContainer"></div>
+    <div class="myWidget"></div>
+    <script src="{% static 'main.js' %}"></script>
     <div class="container">
       <h1 class="my-4 text-center">YouTube Video Downloader</h1>
       <form method="post" action="{% url 'index' %}" class="mb-4">
