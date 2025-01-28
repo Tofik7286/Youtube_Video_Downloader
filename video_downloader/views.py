@@ -1,5 +1,5 @@
 from datetime import datetime
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from googleapiclient.discovery import build
 import yt_dlp as youtube_dl
@@ -10,6 +10,7 @@ import time
 from urllib.parse import urlparse, parse_qs
 import re
 from dotenv import load_dotenv
+from django.contrib import messages
 
 load_dotenv()
 # YouTube API configuration
@@ -66,16 +67,28 @@ def list_formats(video_url):
         result = ydl.extract_info(video_url, download=False)
         formats = result.get('formats', None)
 
-        format_list = []
+        # Filter formats for mp4 and specific qualities
+        filtered_formats = []
+        desired_qualities = ['144p', '240p', '360p', '480p', '720p', '1080p']
+        added_qualities = set()
         for f in formats:
-            format_list.append({
-                'format_id': f['format_id'],
-                'ext': f['ext'],
-                'resolution': f['resolution'],
-                'note': f.get('format_note', '')
-            })
+            if f['ext'] == 'mp4':
+                quality = f.get('format_note', '') or f.get('resolution', '')
+                if any(q in quality for q in desired_qualities) and quality not in added_qualities:
+                    file_size = f.get('filesize', 0)
+                    if file_size:
+                        file_size = f"{file_size / 1024 / 1024:.2f} MB"  # Convert to MB and format
+                    else:
+                        file_size = "Unknown size"
+                    filtered_formats.append({
+                        'format_id': f['format_id'],
+                        'ext': f['ext'],
+                        'resolution': quality,
+                        'note': f"{quality} - {file_size}"
+                    })
+                    added_qualities.add(quality)
 
-        return format_list
+        return filtered_formats
 
 def index(request):
     video_details = None
@@ -93,19 +106,16 @@ def download_video(request):
         format_id = request.POST.get('format_id')
 
         try:
-            # Use yt-dlp to download the video without cookies
+            # Use yt-dlp to download the video with cookies
             current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            cookies_file_path = os.path.join(settings.BASE_DIR, 'cookies.txt')  # Update this path to match the location of your cookies.txt file
             output_template = os.path.join(settings.MEDIA_ROOT, '%(title)s.%(ext)s')
 
-            # Custom user-agent and no cookies
             ydl_opts = {
                 'format': format_id,
                 'outtmpl': output_template,
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'no-check-certificate': True,  # Ignore SSL certificate errors
-                'extractor-args': 'youtube:player_client=android',  # Mimic Android player
+                'cookiefile': cookies_file_path,
             }
-
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                 info_dict = ydl.extract_info(video_url)
                 title = sanitize_filename(info_dict.get('title', 'video'))
@@ -116,17 +126,22 @@ def download_video(request):
                 if os.path.exists(downloaded_file_path):
                     # Set file modification time to current time
                     os.utime(downloaded_file_path, (time.time(), time.time()))
+                    # Add success message
+                    messages.success(request, f'Your video "{title}" downloaded successfully. Check your download folder.')
                 else:
                     # Log an error if the file does not exist
                     print(f"File not found: {downloaded_file_path}")
-                    return HttpResponse(f"File not found: {downloaded_file_path}", status=500)
+                    messages.error(request, f"File not found: {downloaded_file_path}")
+                    return redirect('index')
 
-            return HttpResponse(f"Video downloaded successfully: {downloaded_file_path}")
+            return redirect('index')
         except HTTPError as e:
             print(f"HTTP error occurred: {e}")
-            return HttpResponse(f"HTTP error occurred: {e}", status=403)
+            messages.error(request, f"HTTP error occurred: {e}")
+            return redirect('index')
         except Exception as e:
             print(f"An error occurred: {e}")
-            return HttpResponse(f"An error occurred: {e}", status=500)
+            messages.error(request, f"An error occurred: {e}")
+            return redirect('index')
 
     return HttpResponse("Invalid request method", status=405)
