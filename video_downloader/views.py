@@ -1,6 +1,6 @@
 from datetime import datetime
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from googleapiclient.discovery import build
 import yt_dlp as youtube_dl
 import os
@@ -90,6 +90,27 @@ def list_formats(video_url):
 
         return filtered_formats
 
+class DownloadProgress:
+    def __init__(self):
+        self.progress = 0
+        self.speed = '0B/s'
+        self.eta = 'N/A'
+    
+    def update_progress(self, d):
+        if d['status'] == 'downloading':
+            # Remove ANSI escape codes
+            percent_str = re.sub(r'\x1b\[[0-9;]*m', '', d['_percent_str']).strip('%')
+            self.progress = float(percent_str)
+            self.speed = re.sub(r'\x1b\[[0-9;]*m', '', d['_speed_str'])
+            self.eta = re.sub(r'\x1b\[[0-9;]*m', '', d['_eta_str'])
+        elif d['status'] == 'finished':
+            self.progress = 100
+            self.speed = 'N/A'
+            self.eta = '0s'
+
+download_progress = DownloadProgress()
+
+
 def index(request):
     video_details = None
     formats = None
@@ -115,6 +136,7 @@ def download_video(request):
                 'format': format_id,
                 'outtmpl': output_template,
                 'cookiefile': cookies_file_path,
+                'progress_hooks': [download_progress.update_progress],  # Add progress hook
             }
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                 info_dict = ydl.extract_info(video_url)
@@ -145,3 +167,11 @@ def download_video(request):
             return redirect('index')
 
     return HttpResponse("Invalid request method", status=405)
+
+def get_download_progress(request):
+    progress_data = {
+        'progress': download_progress.progress,
+        'speed': download_progress.speed,
+        'eta': download_progress.eta,
+    }
+    return JsonResponse(progress_data)

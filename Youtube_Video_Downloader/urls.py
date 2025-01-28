@@ -16,10 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from video_downloader import views  
+from video_downloader import views
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
     path('download/', views.download_video, name='download'),
-
+    path('download-progress/', views.get_download_progress, name='download_progress'),  # Updated to reflect new function name
 ]
