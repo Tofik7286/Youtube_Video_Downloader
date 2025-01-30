@@ -11,6 +11,13 @@ from urllib.parse import urlparse, parse_qs
 import re
 from dotenv import load_dotenv
 from django.contrib import messages
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 # YouTube API configuration
@@ -22,8 +29,22 @@ def sanitize_filename(title):
     # Replace invalid characters with underscores
     return re.sub(r'[<>:"/\\|?*]', '_', title)
 
+def validate_youtube_url(url):
+    validator = URLValidator()
+    try:
+        validator(url)
+        parsed_url = urlparse(url)
+        if parsed_url.netloc not in ['www.youtube.com', 'youtu.be']:
+            raise ValidationError("Invalid YouTube URL")
+    except ValidationError:
+        return False
+    return True
+
 def get_video_details(video_url):
     try:
+        if not validate_youtube_url(video_url):
+            raise ValueError("Invalid YouTube URL")
+
         # Extract the video ID from the URL
         parsed_url = urlparse(video_url)
         if parsed_url.netloc == 'youtu.be':
@@ -51,10 +72,10 @@ def get_video_details(video_url):
         }
         return video_details
     except HTTPError as e:
-        print(f"HTTP error occurred: {e}")
+        logger.error(f"HTTP error occurred: {e}")
         return None
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
         return None
 
 def list_formats(video_url):
@@ -110,14 +131,20 @@ class DownloadProgress:
 
 download_progress = DownloadProgress()
 
-
 def index(request):
     video_details = None
     formats = None
     if request.method == 'POST':
         video_url = request.POST.get('video_url')
+        if not validate_youtube_url(video_url):
+            messages.error(request, "Invalid YouTube URL")
+            return redirect('index')
+
         video_details = get_video_details(video_url)
-        formats = list_formats(video_url)
+        if video_details:
+            formats = list_formats(video_url)
+        else:
+            messages.error(request, "Unable to fetch video details")
 
     return render(request, 'video_downloader/index.html', {'video_details': video_details, 'formats': formats})
 
@@ -127,15 +154,20 @@ def download_video(request):
         format_id = request.POST.get('format_id')
 
         try:
+            if not validate_youtube_url(video_url):
+                messages.error(request, "Invalid YouTube URL")
+                return redirect('index')
+
             # Use yt-dlp to download the video with cookies
             current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             cookies_file_path = os.path.join(settings.BASE_DIR, 'cookies.txt')  # Update this path to match the location of your cookies.txt file
             output_template = os.path.join(settings.MEDIA_ROOT, '%(title)s.%(ext)s')
 
             ydl_opts = {
-                'format': format_id,
+                'format': f'{format_id}+bestaudio/best',  # Ensure best video and audio formats are downloaded
                 'outtmpl': output_template,
                 'cookiefile': cookies_file_path,
+                'merge_output_format': 'mp4',  # Merge video and audio into a single file
                 'progress_hooks': [download_progress.update_progress],  # Add progress hook
             }
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
@@ -144,30 +176,31 @@ def download_video(request):
                 ext = info_dict.get('ext', 'mp4')
                 downloaded_file_path = os.path.join(settings.MEDIA_ROOT, f"{title}.{ext}")
 
+                logger.debug(f"Expected downloaded file path: {downloaded_file_path}")
+
                 # Ensure the file exists before setting the modification time
                 if os.path.exists(downloaded_file_path):
                     # Set file modification time to current time
                     os.utime(downloaded_file_path, (time.time(), time.time()))
                     # Add success message
                     messages.success(request, f'Your video "{title}" downloaded successfully. Check your download folder.')
-                else:
-                    # Log an error if the file does not exist
-                    print(f"File not found: {downloaded_file_path}")
-                    messages.error(request, f"File not found: {downloaded_file_path}")
-                    return redirect('index')
+                # else:
+                #     # Log an error if the file does not exist
+                #     logger.error(f"File not found: {downloaded_file_path}")
+                #     messages.error(request, f"File not found: {downloaded_file_path}")
+                #     return redirect('index')
 
             return redirect('index')
         except HTTPError as e:
-            print(f"HTTP error occurred: {e}")
+            logger.error(f"HTTP error occurred: {e}")
             messages.error(request, f"HTTP error occurred: {e}")
             return redirect('index')
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"An error occurred: {e}")
             messages.error(request, f"An error occurred: {e}")
             return redirect('index')
 
     return HttpResponse("Invalid request method", status=405)
-
 def get_download_progress(request):
     progress_data = {
         'progress': download_progress.progress,
