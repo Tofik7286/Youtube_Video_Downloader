@@ -22,5 +22,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
     path('download/', views.download_video, name='download'),
-    path('download-progress/', views.get_download_progress, name='download_progress'),  # Updated to reflect new function name
+    path('download-progress/', views.get_download_progress, name='download_progress'), 
 ]

@@ -90,7 +90,7 @@ def list_formats(video_url):
 
         # Filter formats for mp4 and specific qualities
         filtered_formats = []
-        desired_qualities = ['144p', '240p', '360p', '480p', '720p', '1080p']
+        desired_qualities = ['144p', '240p', '360p', '480p', '720p', '1080p', 'Premium']
         added_qualities = set()
         for f in formats:
             if f['ext'] == 'mp4':
@@ -159,9 +159,19 @@ def download_video(request):
                 return redirect('index')
 
             # Use yt-dlp to download the video with cookies
-            current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             cookies_file_path = os.path.join(settings.BASE_DIR, 'cookies.txt')  # Update this path to match the location of your cookies.txt file
-            output_template = os.path.join(settings.MEDIA_ROOT, '%(title)s.%(ext)s')
+
+            # Get the format details to append quality to the title
+            ydl_opts_info = {
+                'format': format_id,
+            }
+            with youtube_dl.YoutubeDL(ydl_opts_info) as ydl:
+                info_dict = ydl.extract_info(video_url, download=False)
+                title = sanitize_filename(info_dict.get('title', 'video'))
+                # Extract the quality or resolution
+                format_note = next((fmt.get('format_note') or fmt.get('resolution', '') for fmt in info_dict['formats'] if fmt['format_id'] == format_id), 'unknown_quality')
+
+            output_template = os.path.join(settings.MEDIA_ROOT, f'{title}_{format_note}.%(ext)s')
 
             ydl_opts = {
                 'format': f'{format_id}+bestaudio/best',  # Ensure best video and audio formats are downloaded
@@ -171,24 +181,22 @@ def download_video(request):
                 'progress_hooks': [download_progress.update_progress],  # Add progress hook
             }
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                info_dict = ydl.extract_info(video_url)
-                title = sanitize_filename(info_dict.get('title', 'video'))
-                ext = info_dict.get('ext', 'mp4')
-                downloaded_file_path = os.path.join(settings.MEDIA_ROOT, f"{title}.{ext}")
+                ydl.download([video_url])
 
-                logger.debug(f"Expected downloaded file path: {downloaded_file_path}")
+            downloaded_file_path = output_template % {'ext': 'mp4'}
+            logger.debug(f"Expected downloaded file path: {downloaded_file_path}")
 
-                # Ensure the file exists before setting the modification time
-                if os.path.exists(downloaded_file_path):
-                    # Set file modification time to current time
-                    os.utime(downloaded_file_path, (time.time(), time.time()))
-                    # Add success message
-                    messages.success(request, f'Your video "{title}" downloaded successfully. Check your download folder.')
-                # else:
-                #     # Log an error if the file does not exist
-                #     logger.error(f"File not found: {downloaded_file_path}")
-                #     messages.error(request, f"File not found: {downloaded_file_path}")
-                #     return redirect('index')
+            # Ensure the file exists before setting the modification time
+            if os.path.exists(downloaded_file_path):
+                # Set file modification time to current time
+                os.utime(downloaded_file_path, (time.time(), time.time()))
+                # Add success message
+                messages.success(request, f'Your video "{title}" downloaded successfully. Check your download folder.')
+            else:
+                # Log an error if the file does not exist
+                logger.error(f"File not found: {downloaded_file_path}")
+                messages.error(request, f"File not found: {downloaded_file_path}")
+                return redirect('index')
 
             return redirect('index')
         except HTTPError as e:
